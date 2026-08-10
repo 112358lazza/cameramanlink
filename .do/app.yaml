@@ -1,0 +1,15 @@
+name: livecam-studio
+region: fra
+services:
+- name: web
+  github:
+    branch: main
+    deploy_on_push: true
+  environment_slug: node-js
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  http_port: 3000
+  run_command: npm start
+  build_command: npm install
+  routes:
+  - path: /

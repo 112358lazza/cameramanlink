@@ -15,23 +15,24 @@ echo " Dominio: https://$DOMAIN"
 echo "========================================================"
 
 # 1. Dipendenze di Sistema
-echo "[1/8] Installazione pacchetti di sistema (Python, MongoDB, Nginx, Docker)..."
+echo "[1/8] Installazione pacchetti di sistema (Python, Nginx, Docker)..."
 apt-get update -y
-apt-get install -y curl git ufw nginx certbot python3-certbot-nginx python3-pip python3-venv mongodb
+apt-get install -y curl git ufw nginx certbot python3-certbot-nginx python3-pip python3-venv
 
-# Avvia MongoDB
-systemctl enable mongodb || true
-systemctl start mongodb || true
+# Installazione Docker se mancante
+if ! command -v docker &> /dev/null; then
+    curl -fsSL https://get.docker.com | sh
+fi
+
+# Avvia MongoDB via Docker
+echo "Avvio MongoDB in Docker..."
+docker rm -f mongodb || true
+docker run -d --name mongodb --restart unless-stopped -p 127.0.0.1:27017:27017 mongo:latest
 
 # Installazione Node.js LTS se mancante
 if ! command -v node &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
     apt-get install -y nodejs
-fi
-
-# Docker per MediaMTX
-if ! command -v docker &> /dev/null; then
-    curl -fsSL https://get.docker.com | sh
 fi
 
 # 2. Setup MediaMTX (Media Server per SRT, RTMP, HLS)
@@ -101,7 +102,7 @@ python3 -m venv venv
 cat > /etc/systemd/system/livecast-backend.service <<EOF
 [Unit]
 Description=LiveCast FastAPI Backend
-After=network.target mongodb.service
+After=network.target docker.service
 
 [Service]
 ExecStart=$APP_DIR/backend/venv/bin/uvicorn server:app --host 127.0.0.1 --port 8001
