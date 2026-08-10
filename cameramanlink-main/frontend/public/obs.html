@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveCast Studio — OBS Source</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html { width: 100%; height: 100%; background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+    #videoContainer { position: relative; width: 100vw; height: 100vh; background: #000; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+    #overlay { position: absolute; inset: 0; background: rgba(10, 10, 15, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; z-index: 10; transition: opacity 0.5s ease; }
+    .spinner { width: 44px; height: 44px; border: 4px solid rgba(255,255,255,0.1); border-left-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .title { font-size: 20px; font-weight: 700; letter-spacing: 1px; color: #fff; margin-bottom: 8px; }
+    .status { font-size: 14px; color: #94a3b8; max-width: 80%; }
+    .hidden { opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="videoContainer">
+    <video id="remoteVideo" autoplay playsinline muted></video>
+    <div id="overlay">
+      <div class="spinner" id="spinner"></div>
+      <div class="title">LIVECAST STUDIO — OBS SOURCE</div>
+      <div class="status" id="status">Inizializzazione connessione...</div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const eventCode = (params.get('event') || '').toUpperCase();
+    const camSlot = params.get('cam') || '1';
+    const obsClientId = 'obs_' + camSlot;
+
+    const statusEl = document.getElementById('status');
+    const overlayEl = document.getElementById('overlay');
+    const videoEl = document.getElementById('remoteVideo');
+
+    if (!eventCode) {
+      statusEl.textContent = 'Errore: Codice evento mancante nell\'URL (?event=CODICE&cam=1)';
+    } else {
+      initOBSReceiver();
+    }
+
+    function initOBSReceiver() {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/api/ws/${eventCode}/${obsClientId}`;
+      
+      let ws = null;
+      let peer = null;
+      let requestInterval = null;
+
+      function connectWS() {
+        statusEl.textContent = `Connessione al server (${eventCode})...`;
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          statusEl.textContent = `Connesso alla Regia (${eventCode}). In attesa del segnale da CAM ${camSlot}...`;
+          
+          // Request stream from cameraman every 2 seconds until stream is established
+          if (requestInterval) clearInterval(requestInterval);
+          requestInterval = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN && (!videoEl.srcObject || videoEl.paused)) {
+              ws.send(JSON.stringify({ type: 'request-stream', target: 'all', from: obsClientId }));
+            }
+          }, 2000);
+          ws.send(JSON.stringify({ type: 'request-stream', target: 'all', from: obsClientId }));
+        };
+
+        ws.onmessage = async (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            handleWSMessage(data);
+          } catch (e) {
+            console.error('WS Parse Error:', e);
+          }
+        };
+
+        ws.onclose = () => {
+          statusEl.textContent = 'Connessione persa. Riconnessione in corso...';
+          if (requestInterval) clearInterval(requestInterval);
+          setTimeout(connectWS, 2000);
+        };
+
+        ws.onerror = (err) => {
+          console.error('WS Error:', err);
+        };
+      }
+
+      async function handleWSMessage(data) {
+        if (data.type === 'webrtc-offer' && data.sdp) {
+          statusEl.textContent = 'Ricevuta offerta video WebRTC. Negotiation in corso...';
+          
+          if (peer) {
+            peer.close();
+          }
+
+          peer = new RTCPeerConnection({
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'stun:stun2.l.google.com:19302' }
+            ]
+          });
+
+          peer.ontrack = (evt) => {
+            if (evt.streams && evt.streams[0]) {
+              videoEl.srcObject = evt.streams[0];
+              videoEl.play().then(() => {
+                overlayEl.classList.add('hidden');
+              }).catch(e => {
+                console.warn('Auto-play play() catch:', e);
+                overlayEl.classList.add('hidden');
+              });
+            }
+          };
+
+          peer.onicecandidate = (evt) => {
+            if (evt.candidate && ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'webrtc-candidate',
+                from: obsClientId,
+                target: data.from,
+                candidate: evt.candidate
+              }));
+            }
+          };
+
+          try {
+            await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            const answer = await peer.createAnswer();
+            await peer.setLocalDescription(answer);
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'webrtc-answer',
+                from: obsClientId,
+                target: data.from,
+                sdp: answer
+              }));
+            }
+          } catch (e) {
+            console.error('Peer connection setup error:', e);
+          }
+        } else if (data.type === 'webrtc-candidate' && data.candidate && peer) {
+          await peer.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+        }
+      }
+
+      connectWS();
+    }
+  </script>
+</body>
+</html>

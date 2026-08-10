@@ -173,17 +173,30 @@ export default function LiveScreen() {
     if (next) {
       showToast("STREAMING IN ONDA — Segnale WebRTC Attivo!");
       if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.mediaDevices) {
+        let stream: MediaStream | null = null;
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: facing === "back" ? "environment" : "user" },
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facing === "back" ? "environment" : "user" },
             audio: true,
           });
-          broadcasterRef.current?.setStream(stream);
-        } catch (err) {
-          console.warn("getUserMedia failed:", err);
+        } catch {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: { facingMode: facing === "back" ? "environment" : "user" },
+              audio: false,
+            });
+          } catch (e) {
+            console.error("getUserMedia failed:", e);
+          }
+        }
+        if (stream && broadcasterRef.current) {
+          await broadcasterRef.current.setStream(stream);
         }
       }
     } else {
+      if (Platform.OS === "web" && broadcasterRef.current) {
+        broadcasterRef.current.setStream(null);
+      }
       showToast("Stream fermato");
     }
   };
