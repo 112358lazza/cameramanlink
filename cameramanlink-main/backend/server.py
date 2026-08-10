@@ -262,8 +262,9 @@ async def ws_endpoint(websocket: WebSocket, event_code: str, client_id: str):
         await websocket.close(code=4404)
         return
     is_director = client_id == "director"
+    is_obs = client_id.startswith("obs_") or client_id.startswith("director_cam_")
     op = None
-    if not is_director:
+    if not is_director and not is_obs:
         op = await db.operators.find_one({"id": client_id}, {"_id": 0})
         if not op:
             await websocket.close(code=4404)
@@ -271,12 +272,15 @@ async def ws_endpoint(websocket: WebSocket, event_code: str, client_id: str):
 
     await manager.connect(event_code, client_id, websocket)
 
-    if not is_director:
+    if op:
         await db.operators.update_one({"id": client_id}, {"$set": {"online": True}})
         entry = await log_event(event_code, "connect", f"{op['name']} (CAM{op['cam_slot']}) connesso")
         await manager.broadcast(event_code, {"type": "log", "entry": entry})
-    else:
+    elif is_director:
         entry = await log_event(event_code, "connect", "Regia connessa")
+        await manager.broadcast(event_code, {"type": "log", "entry": entry})
+    elif is_obs:
+        entry = await log_event(event_code, "connect", f"OBS Source ({client_id}) connesso")
         await manager.broadcast(event_code, {"type": "log", "entry": entry})
 
     await manager.broadcast(event_code, await presence_snapshot(event_code))
@@ -350,6 +354,13 @@ async def ws_endpoint(websocket: WebSocket, event_code: str, client_id: str):
                         entry = await log_event(event_code, "stream", f"{op['name']} (CAM{op['cam_slot']}) {verb}")
                         await manager.broadcast(event_code, {"type": "log", "entry": entry})
                     await manager.send_to(event_code, "director", {"type": "status", "operator_id": client_id, **fields})
+
+            elif mtype in ("webrtc-offer", "webrtc-answer", "webrtc-candidate", "request-stream"):
+                target_id = data.get("target")
+                if target_id:
+                    await manager.send_to(event_code, target_id, data)
+                else:
+                    await manager.broadcast(event_code, data)
 
     except WebSocketDisconnect:
         pass

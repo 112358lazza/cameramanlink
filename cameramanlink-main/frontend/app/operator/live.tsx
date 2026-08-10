@@ -24,6 +24,8 @@ import { useEventSocket } from "@/src/hooks/useEventSocket";
 import { storage } from "@/src/utils/storage";
 import { colors, fonts, radius, spacing, type } from "@/src/theme";
 
+import { WebRTCBroadcaster } from "@/src/utils/webrtc";
+
 const PRESETS = ["OK", "Aspetta", "Zoom in", "Zoom out", "Cambia inquadratura"];
 
 // Wake Lock is not permitted on the web preview — mount only on native.
@@ -56,9 +58,10 @@ export default function LiveScreen() {
   const cameraRef = useRef<CameraView>(null);
   const streamingRef = useRef(false);
   const batteryRef = useRef<number | null>(null);
-  const pingRef = useRef<number | null>(null);
+  const pingRef.current = ping;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList>(null);
+  const broadcasterRef = useRef<WebRTCBroadcaster | null>(null);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -88,17 +91,26 @@ export default function LiveScreen() {
       } else if (data.type === "pong") {
         const rtt = Date.now() - Number(data.ts);
         setPing(rtt);
-        pingRef.current = rtt;
       } else if (data.type === "chat") {
         const msg: ChatMessage = data.message;
         setMessages((prev) => [...prev, msg]);
         if (msg.sender === "director") showToast(`Regia: ${msg.text}`);
+      } else if (["request-stream", "webrtc-answer", "webrtc-candidate"].includes(data.type)) {
+        broadcasterRef.current?.handleMessage(data);
       }
     },
     [opId, showToast],
   );
 
   const { connected, send } = useEventSocket(code, opId, onWsMessage);
+
+  useEffect(() => {
+    if (!opId || !send) return;
+    broadcasterRef.current = new WebRTCBroadcaster(opId, send);
+    return () => {
+      broadcasterRef.current?.closeAll();
+    };
+  }, [opId, send]);
 
   // Chat history
   useEffect(() => {
@@ -151,16 +163,28 @@ export default function LiveScreen() {
     };
   }, [connected, send]);
 
-  const toggleLive = () => {
+  const toggleLive = async () => {
     const next = !streaming;
     setStreaming(next);
     streamingRef.current = next;
-    send({ type: "status", streaming: next, bitrate: next ? 4000 : 0, battery: batteryRef.current, ping: pingRef.current });
-    showToast(
-      next
-        ? "Stream avviato — anteprima locale. SRT reale attivo con la build nativa."
-        : "Stream fermato",
-    );
+    send({ type: "status", streaming: next, bitrate: next ? 4000 : 0, battery: batteryRef.current, ping: batteryRef.current });
+    
+    if (next) {
+      showToast("STREAMING IN ONDA — Segnale WebRTC Attivo!");
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.mediaDevices) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: facing === "back" ? "environment" : "user" },
+            audio: true,
+          });
+          broadcasterRef.current?.setStream(stream);
+        } catch (err) {
+          console.warn("getUserMedia failed:", err);
+        }
+      }
+    } else {
+      showToast("Stream fermato");
+    }
   };
 
   const sendChat = (text: string, preset = false) => {
