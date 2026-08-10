@@ -145,33 +145,26 @@ async def patch_event(code: str, body: EventPatch):
 @api_router.post("/events/{code}/join")
 async def join_event(code: str, body: JoinRequest):
     ev = await get_event_or_404(code)
-    name = body.name.strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Nome operatore obbligatorio")
-    
-    # Auto-cleanup any offline operators so slots are immediately free for new cameramen!
-    await db.operators.delete_many({"event_code": ev["code"], "online": False})
+    name = (body.name or "Cameraman").strip()
+    target_slot = body.cam_slot
 
-    # Reuse existing slot if same name
-    existing = await db.operators.find_one({"event_code": ev["code"], "name": name}, {"_id": 0})
-    if existing:
-        cam = next((c for c in ev["cameras"] if c["slot"] == existing["cam_slot"]), ev["cameras"][0])
-        host = ev.get("media_host") or MEDIA_HOST_DEFAULT
-        return {**existing, "urls": build_urls(host, cam["stream_key"]), "event_name": ev["name"]}
-    
-    taken = await db.operators.distinct("cam_slot", {"event_code": ev["code"], "online": True})
-    free = [c for c in ev["cameras"] if c["slot"] not in taken]
-    if not free:
-        # If all slots were somehow taken, clear oldest offline or reset and assign slot 1
-        await db.operators.delete_many({"event_code": ev["code"]})
-        cam = ev["cameras"][0]
+    if target_slot:
+        # Direct camera selection: remove any old operator in this slot so it claims instantly
+        await db.operators.delete_many({"event_code": ev["code"], "cam_slot": target_slot})
+        selected_slot = target_slot
     else:
-        cam = free[0]
+        # Auto-cleanup offline operators
+        await db.operators.delete_many({"event_code": ev["code"], "online": False})
+        taken = await db.operators.distinct("cam_slot", {"event_code": ev["code"], "online": True})
+        free = [c["slot"] for c in ev["cameras"] if c["slot"] not in taken]
+        selected_slot = free[0] if free else 1
+
+    cam = next((c for c in ev["cameras"] if c["slot"] == selected_slot), ev["cameras"][0])
 
     op = {
         "id": str(uuid.uuid4()),
         "event_code": ev["code"],
-        "name": name,
+        "name": name if "CAM" in name else f"{name} CAM{cam['slot']}",
         "cam_slot": cam["slot"],
         "stream_key": cam["stream_key"],
         "online": True,
@@ -183,7 +176,7 @@ async def join_event(code: str, body: JoinRequest):
         "joined_at": now_iso(),
     }
     await db.operators.insert_one({**op})
-    await log_event(ev["code"], "join", f"{name} registrato come CAM{cam['slot']}")
+    await log_event(ev["code"], "join", f"{op['name']} registrato come CAM{cam['slot']}")
     host = ev.get("media_host") or MEDIA_HOST_DEFAULT
     return {**op, "urls": build_urls(host, cam["stream_key"]), "event_name": ev["name"]}
 

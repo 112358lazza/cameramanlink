@@ -199,6 +199,14 @@ export default function Dashboard() {
 
               <View style={styles.tileActions}>
                 <Pressable
+                  testID={`copy-cameraman-link-${cam.slot}`}
+                  style={[styles.smallBtn, { backgroundColor: "#065f46", borderColor: "#10b981" }]}
+                  onPress={() => copy(`https://cameraman.gerikult.it/operator/join?code=${event.code}&cam=${cam.slot}`, `Link Diretto Cameraman CAM ${cam.slot}`)}
+                >
+                  <Ionicons name="phone-portrait-outline" size={14} color="#6ee7b7" />
+                  <Text style={[styles.smallBtnText, { color: "#a7f3d0", fontWeight: "700" }]}>Link Cameraman</Text>
+                </Pressable>
+                <Pressable
                   testID={`copy-obs-direct-${cam.slot}`}
                   style={[styles.smallBtn, { backgroundColor: "#1e3a8a", borderColor: "#3b82f6" }]}
                   onPress={() => copy(`https://cameraman.gerikult.it/obs.html?event=${event.code}&cam=${cam.slot}`, "Link OBS Browser Direct (WebRTC)")}

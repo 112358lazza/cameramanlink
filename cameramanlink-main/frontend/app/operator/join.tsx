@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,30 +12,39 @@ import { colors, fonts, radius, spacing, type } from "@/src/theme";
 export default function JoinScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { code: urlCode } = useLocalSearchParams<{ code?: string; cam?: string }>();
+  const { code: urlCode, cam: urlCam } = useLocalSearchParams<{ code?: string; cam?: string }>();
   const [code, setCode] = useState(urlCode ? urlCode.toUpperCase() : "");
   const [name, setName] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingSlot, setLoadingSlot] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const join = async () => {
-    if (!code.trim() || !name.trim()) {
-      setError("Inserisci codice evento e nome operatore");
+  // Direct auto-join if url has code & cam
+  useEffect(() => {
+    if (urlCode && urlCam) {
+      joinCamera(parseInt(urlCam, 10));
+    }
+  }, [urlCode, urlCam]);
+
+  const joinCamera = async (slot: number) => {
+    const targetCode = code.trim().toUpperCase();
+    if (!targetCode) {
+      setError("Inserisci il Codice Evento fornito dalla Regia");
       return;
     }
-    setLoading(true);
+    setLoadingSlot(slot);
     setError(null);
     try {
-      const op = await apiFetch<Operator>(`/events/${code.trim().toUpperCase()}/join`, {
+      const opName = name.trim() || `Operatore CAM ${slot}`;
+      const op = await apiFetch<Operator>(`/events/${targetCode}/join`, {
         method: "POST",
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ name: opName, cam_slot: slot }),
       });
       await storage.setItem("livecast-op-session", JSON.stringify(op));
       router.replace({ pathname: "/operator/live", params: { code: op.event_code, opId: op.id } });
     } catch (e: any) {
-      setError(e.message || "Connessione fallita");
+      setError(e.message || "Connessione alla telecamera fallita");
     } finally {
-      setLoading(false);
+      setLoadingSlot(null);
     }
   };
 
@@ -45,8 +54,9 @@ export default function JoinScreen() {
         <Pressable testID="join-back-button" onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color={colors.onSurface} />
         </Pressable>
-        <Text style={styles.topTitle}>ACCESSO OPERATORE</Text>
+        <Text style={styles.topTitle}>ACCESSO RAPIDO CAMERAMAN</Text>
       </View>
+
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scroll}
@@ -56,10 +66,10 @@ export default function JoinScreen() {
         <View style={styles.iconWrap}>
           <Ionicons name="videocam" size={34} color={colors.onBrandTertiary} />
         </View>
-        <Text style={styles.title}>ENTRA NELL&apos;EVENTO</Text>
-        <Text style={styles.desc}>Chiedi alla regia il codice evento a 6 caratteri.</Text>
+        <Text style={styles.title}>SCEGLI LA TUA TELECAMERA</Text>
+        <Text style={styles.desc}>Tocca la telecamera per entrare direttamente ed iniziare a trasmettere.</Text>
 
-        <Text style={styles.label}>CODICE EVENTO</Text>
+        <Text style={styles.label}>CODICE EVENTO REGIA</Text>
         <TextInput
           testID="join-event-code-input"
           style={styles.input}
@@ -72,7 +82,7 @@ export default function JoinScreen() {
           maxLength={6}
         />
 
-        <Text style={styles.label}>NOME OPERATORE</Text>
+        <Text style={styles.label}>NOME CAMERAMAN (OPZIONALE)</Text>
         <TextInput
           testID="join-operator-name-input"
           style={styles.input}
@@ -88,86 +98,156 @@ export default function JoinScreen() {
             {error}
           </Text>
         ) : null}
-      </KeyboardAwareScrollView>
 
-      <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.lg }]}>
-        <Pressable
-          testID="join-submit-button"
-          style={({ pressed }) => [styles.cta, pressed && { opacity: 0.85 }, loading && { opacity: 0.6 }]}
-          onPress={join}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color={colors.onBrand} />
-          ) : (
-            <Text style={styles.ctaText}>ENTRA IN STAND-BY</Text>
-          )}
-        </Pressable>
-      </View>
+        <Text style={[styles.label, { marginTop: spacing.md, marginBottom: spacing.sm }]}>TELECAMERE DISPONIBILI</Text>
+        
+        <View style={styles.cameraGrid}>
+          {[1, 2, 3, 4].map((slot) => (
+            <Pressable
+              key={slot}
+              style={({ pressed }) => [
+                styles.camCard,
+                pressed && styles.camCardPressed,
+                loadingSlot === slot && { opacity: 0.6 },
+              ]}
+              onPress={() => joinCamera(slot)}
+              disabled={loadingSlot !== null}
+            >
+              <View style={styles.camIconWrap}>
+                <Ionicons name="videocam" size={26} color="#60a5fa" />
+              </View>
+              <View style={styles.camCardBody}>
+                <Text style={styles.camCardTitle}>CAMERA {slot}</Text>
+                <Text style={styles.camCardSub}>Tocca per accedere a CAM {slot}</Text>
+              </View>
+              {loadingSlot === slot ? (
+                <ActivityIndicator color="#3b82f6" />
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceSecondary} />
+              )}
+            </Pressable>
+          ))}
+        </View>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   topBar: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
   },
   backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.md,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.surfaceSecondary,
+    padding: spacing.xs,
+    marginRight: spacing.sm,
   },
-  topTitle: { fontFamily: fonts.display, color: colors.onSurface, fontSize: 20, letterSpacing: 1 },
-  scroll: { padding: spacing.xl },
+  topTitle: {
+    color: colors.onSurface,
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  scroll: {
+    padding: spacing.lg,
+  },
   iconWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: radius.lg,
-    backgroundColor: colors.brandTertiary,
-    alignItems: "center",
+    width: 60,
+    height: 60,
+    borderRadius: radius.md,
+    backgroundColor: colors.brandSecondary,
     justifyContent: "center",
-    marginBottom: spacing.lg,
+    alignItems: "center",
+    alignSelf: "center",
+    marginBottom: spacing.md,
   },
-  title: { fontFamily: fonts.display, color: colors.onSurface, fontSize: 34 },
-  desc: { color: colors.onSurfaceSecondary, fontSize: type.base, marginTop: spacing.xs, marginBottom: spacing.xl },
+  title: {
+    color: colors.onSurface,
+    fontSize: 22,
+    fontWeight: "800",
+    textAlign: "center",
+    letterSpacing: 0.5,
+    marginBottom: spacing.xs,
+  },
+  desc: {
+    color: colors.onSurfaceSecondary,
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: spacing.lg,
+    lineHeight: 20,
+  },
   label: {
     color: colors.onSurfaceSecondary,
-    fontSize: type.sm,
-    letterSpacing: 1.5,
+    fontSize: 12,
     fontWeight: "700",
-    marginBottom: spacing.sm,
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
   },
   input: {
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     borderWidth: 1,
-    borderColor: colors.borderStrong,
     borderRadius: radius.md,
-    color: colors.onSurface,
-    fontSize: type.xl,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    marginBottom: spacing.xl,
-    minHeight: 52,
+    color: colors.onSurface,
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: spacing.md,
   },
-  error: { color: colors.error, fontSize: type.base },
-  footer: { paddingHorizontal: spacing.xl, paddingTop: spacing.md, backgroundColor: colors.surface },
-  cta: {
-    backgroundColor: colors.brand,
-    borderRadius: radius.md,
-    minHeight: 56,
+  error: {
+    color: colors.danger,
+    fontSize: 13,
+    fontWeight: "600",
+    marginBottom: spacing.md,
+    textAlign: "center",
+  },
+  cameraGrid: {
+    gap: spacing.md,
+    marginTop: spacing.xs,
+  },
+  camCard: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: "#111827",
+    borderColor: "#1f2937",
+    borderWidth: 1.5,
+    borderRadius: radius.md,
+    padding: spacing.md,
   },
-  ctaText: { fontFamily: fonts.display, color: colors.onBrand, fontSize: 22, letterSpacing: 1.5 },
+  camCardPressed: {
+    borderColor: "#3b82f6",
+    backgroundColor: "#1e293b",
+  },
+  camIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: radius.sm,
+    backgroundColor: "#1e3a8a",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: spacing.md,
+  },
+  camCardBody: {
+    flex: 1,
+  },
+  camCardTitle: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  camCardSub: {
+    color: "#94A3B8",
+    fontSize: 12,
+    marginTop: 2,
+  },
 });
