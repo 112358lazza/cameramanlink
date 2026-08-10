@@ -145,7 +145,24 @@ async def patch_event(code: str, body: EventPatch):
 
 @api_router.post("/events/{code}/join")
 async def join_event(code: str, body: JoinRequest):
-    ev = await get_event_or_404(code)
+    code_clean = code.strip().upper()
+    ev = await db.events.find_one({"code": code_clean}, {"_id": 0})
+    if not ev:
+        import random
+        ev = {
+            "id": str(uuid.uuid4()),
+            "code": code_clean,
+            "name": f"Evento {code_clean}",
+            "cameras": [
+                {"slot": i, "stream_key": f"{code_clean.lower()}-cam{i}-{random.randint(100000, 999999)}"}
+                for i in range(1, 5)
+            ],
+            "created_at": now_iso(),
+            "active": True,
+        }
+        await db.events.insert_one({**ev})
+        await log_event(code_clean, "create", f"Evento {code_clean} creato al volo da operatore")
+
     name = (body.name or "Cameraman").strip()
     target_slot = body.cam_slot
 
