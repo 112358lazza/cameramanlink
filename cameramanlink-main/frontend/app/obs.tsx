@@ -9,7 +9,7 @@ export default function ObsScreen() {
   const [streaming, setStreaming] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const peerRef = useRef<RTCPeerConnection | null>(null);
-  const obsClientId = `obs_${camSlot || "1"}`;
+  const streamingRef = useRef(false);
 
   const onWsMessage = async (data: any) => {
     if (data.type === "webrtc-offer" && data.sdp) {
@@ -26,6 +26,7 @@ export default function ObsScreen() {
         peer.ontrack = (evt) => {
           if (evt.streams && evt.streams[0]) {
             setStreaming(true);
+            streamingRef.current = true;
             setStatus("IN ONDA");
             if (videoRef.current) {
               videoRef.current.srcObject = evt.streams[0];
@@ -68,10 +69,15 @@ export default function ObsScreen() {
   const { connected, send } = useEventSocket(eventCode || "", obsClientId, onWsMessage);
 
   useEffect(() => {
-    if (connected && send) {
-      setStatus(`Connesso alla Regia (${eventCode}). In attesa di CAM ${camSlot}...`);
-      send({ type: "request-stream", target: "all", from: obsClientId });
-    }
+    if (!connected || !send) return;
+    setStatus(`Connesso alla Regia (${eventCode}). In attesa di CAM ${camSlot}...`);
+    send({ type: "request-stream", target: "all", from: obsClientId });
+    const interval = setInterval(() => {
+      if (!streamingRef.current) {
+        send({ type: "request-stream", target: "all", from: obsClientId });
+      }
+    }, 3000);
+    return () => clearInterval(interval);
   }, [connected, send, eventCode, camSlot, obsClientId]);
 
   if (Platform.OS !== "web") {
