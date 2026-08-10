@@ -31,7 +31,25 @@ export default function RoleSelection() {
           Trasmetti dal telefono verso OBS. Tally, chat e monitoraggio in tempo reale.
         </Text>
 
-        <View style={styles.cards}>
+          <Pressable
+            testID="role-webrtc-card"
+            style={({ pressed }) => [styles.card, pressed && styles.cardPressed, { borderColor: "#3b82f6" }]}
+            onPress={() => {
+              if (Platform.OS === "web") {
+                window.location.href = "https://cameraman.gerikult.it/studio/director";
+              }
+            }}
+          >
+            <View style={[styles.cardIcon, { backgroundColor: "#1e3a8a" }]}>
+              <Ionicons name="flash" size={26} color="#60a5fa" />
+            </View>
+            <View style={styles.cardBody}>
+              <Text style={[styles.cardTitle, { color: "#93c5fd" }]}>STREAMING BROWSER DIRETTO (OBS)</Text>
+              <Text style={styles.cardDesc}>Trasmissione video immediata da Safari/Chrome senza app installate</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceSecondary} />
+          </Pressable>
+
           <Pressable
             testID="role-cameraman-card"
             style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
@@ -41,7 +59,7 @@ export default function RoleSelection() {
               <Ionicons name="videocam" size={26} color={colors.onBrandTertiary} />
             </View>
             <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>SONO UN CAMERAMAN</Text>
+              <Text style={styles.cardTitle}>SONO UN CAMERAMAN (SRT)</Text>
               <Text style={styles.cardDesc}>Entra con il codice evento e vai in onda</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceSecondary} />
@@ -56,12 +74,11 @@ export default function RoleSelection() {
               <Ionicons name="tv" size={26} color={colors.success} />
             </View>
             <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>SONO LA REGIA</Text>
+              <Text style={styles.cardTitle}>SONO LA REGIA (SRT)</Text>
               <Text style={styles.cardDesc}>Crea l&apos;evento, gestisci tally e OBS</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.onSurfaceSecondary} />
           </Pressable>
-        </View>
       </View>
     </View>
   );
