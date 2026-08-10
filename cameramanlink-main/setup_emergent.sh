@@ -72,14 +72,18 @@ docker run -d \
 
 # 3. Setup Codice Sorgente
 echo "[3/8] Sincronizzazione codice sorgente..."
-if [ -d "$APP_DIR" ]; then
-    cd $APP_DIR
+mkdir -p /opt/cameramanlink-repo
+if [ -d "/opt/cameramanlink-repo/.git" ]; then
+    cd /opt/cameramanlink-repo
     git fetch --all
-    git reset --hard origin/main || true
+    git reset --hard origin/main
 else
+    rm -rf /opt/cameramanlink-repo
     git clone https://github.com/112358lazza/cameramanlink.git /opt/cameramanlink-repo
-    cp -r /opt/cameramanlink-repo/cameramanlink-main $APP_DIR
 fi
+
+rm -rf $APP_DIR
+cp -r /opt/cameramanlink-repo/cameramanlink-main $APP_DIR
 
 # 4. Configurazione Backend FastAPI
 echo "[4/8] Setup Backend Python FastAPI..."
@@ -96,7 +100,7 @@ EOF
 
 python3 -m venv venv
 ./venv/bin/pip install --upgrade pip
-./venv/bin/pip install fastapi uvicorn motor pymongo python-dotenv pydantic starlette requests httpx
+./venv/bin/pip install fastapi uvicorn motor pymongo python-dotenv pydantic starlette requests httpx websockets wsproto httptools
 
 # Servizio Systemd per Backend
 cat > /etc/systemd/system/livecast-backend.service <<EOF
@@ -152,6 +156,18 @@ server {
     # API Backend & WebSockets
     location /api {
         proxy_pass http://127.0.0.1:8001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+
+    # Direct WebRTC Studio Proxy
+    location /studio/ {
+        proxy_pass http://127.0.0.1:3000/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";

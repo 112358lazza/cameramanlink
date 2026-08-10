@@ -72,14 +72,18 @@ docker run -d \
 
 # 3. Setup Codice Sorgente
 echo "[3/8] Sincronizzazione codice sorgente..."
-if [ -d "$APP_DIR" ]; then
-    cd $APP_DIR
+mkdir -p /opt/cameramanlink-repo
+if [ -d "/opt/cameramanlink-repo/.git" ]; then
+    cd /opt/cameramanlink-repo
     git fetch --all
-    git reset --hard origin/main || true
+    git reset --hard origin/main
 else
+    rm -rf /opt/cameramanlink-repo
     git clone https://github.com/112358lazza/cameramanlink.git /opt/cameramanlink-repo
-    cp -r /opt/cameramanlink-repo/cameramanlink-main $APP_DIR
 fi
+
+rm -rf $APP_DIR
+cp -r /opt/cameramanlink-repo/cameramanlink-main $APP_DIR
 
 # 4. Configurazione Backend FastAPI
 echo "[4/8] Setup Backend Python FastAPI..."
