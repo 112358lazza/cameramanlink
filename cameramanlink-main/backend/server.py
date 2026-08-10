@@ -63,7 +63,8 @@ class EventPatch(BaseModel):
 
 
 class JoinRequest(BaseModel):
-    name: str
+    name: Optional[str] = "Cameraman"
+    cam_slot: Optional[int] = None
 
 
 # ---------- Helpers ----------
