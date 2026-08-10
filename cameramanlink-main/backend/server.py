@@ -148,24 +148,33 @@ async def join_event(code: str, body: JoinRequest):
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Nome operatore obbligatorio")
-    # Reuse the slot if same operator name rejoins
+    
+    # Auto-cleanup any offline operators so slots are immediately free for new cameramen!
+    await db.operators.delete_many({"event_code": ev["code"], "online": False})
+
+    # Reuse existing slot if same name
     existing = await db.operators.find_one({"event_code": ev["code"], "name": name}, {"_id": 0})
     if existing:
-        cam = next(c for c in ev["cameras"] if c["slot"] == existing["cam_slot"])
+        cam = next((c for c in ev["cameras"] if c["slot"] == existing["cam_slot"]), ev["cameras"][0])
         host = ev.get("media_host") or MEDIA_HOST_DEFAULT
         return {**existing, "urls": build_urls(host, cam["stream_key"]), "event_name": ev["name"]}
-    taken = await db.operators.distinct("cam_slot", {"event_code": ev["code"]})
+    
+    taken = await db.operators.distinct("cam_slot", {"event_code": ev["code"], "online": True})
     free = [c for c in ev["cameras"] if c["slot"] not in taken]
     if not free:
-        raise HTTPException(status_code=409, detail="Evento al completo: tutti gli slot camera sono occupati")
-    cam = free[0]
+        # If all slots were somehow taken, clear oldest offline or reset and assign slot 1
+        await db.operators.delete_many({"event_code": ev["code"]})
+        cam = ev["cameras"][0]
+    else:
+        cam = free[0]
+
     op = {
         "id": str(uuid.uuid4()),
         "event_code": ev["code"],
         "name": name,
         "cam_slot": cam["slot"],
         "stream_key": cam["stream_key"],
-        "online": False,
+        "online": True,
         "on_air": False,
         "streaming": False,
         "battery": None,
@@ -177,6 +186,12 @@ async def join_event(code: str, body: JoinRequest):
     await log_event(ev["code"], "join", f"{name} registrato come CAM{cam['slot']}")
     host = ev.get("media_host") or MEDIA_HOST_DEFAULT
     return {**op, "urls": build_urls(host, cam["stream_key"]), "event_name": ev["name"]}
+
+
+@api_router.delete("/events/{code}/operators/{operator_id}")
+async def leave_event(code: str, operator_id: str):
+    await db.operators.delete_one({"event_code": code.upper(), "id": operator_id})
+    return {"status": "ok"}
 
 
 @api_router.get("/events/{code}/operators")
@@ -387,11 +402,12 @@ async def ws_endpoint(websocket: WebSocket, event_code: str, client_id: str):
         pass
     finally:
         manager.disconnect(event_code, client_id)
-        if not is_director:
-            await db.operators.update_one({"id": client_id}, {"$set": {"online": False, "streaming": False}})
-            entry = await log_event(event_code, "disconnect", f"{op['name']} (CAM{op['cam_slot']}) disconnesso")
+        if not is_director and not is_obs:
+            await db.operators.delete_one({"id": client_id})
+            op_name = op['name'] if op else client_id
+            entry = await log_event(event_code, "disconnect", f"{op_name} disconnesso (slot liberato)")
         else:
-            entry = await log_event(event_code, "disconnect", "Regia disconnessa")
+            entry = await log_event(event_code, "disconnect", "Regia/OBS disconnessa")
         await manager.broadcast(event_code, {"type": "log", "entry": entry})
         await manager.broadcast(event_code, await presence_snapshot(event_code))
 

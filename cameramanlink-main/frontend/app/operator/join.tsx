@@ -12,7 +12,8 @@ import { colors, fonts, radius, spacing, type } from "@/src/theme";
 export default function JoinScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [code, setCode] = useState("");
+  const { code: urlCode } = useLocalSearchParams<{ code?: string; cam?: string }>();
+  const [code, setCode] = useState(urlCode ? urlCode.toUpperCase() : "");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

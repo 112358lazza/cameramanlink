@@ -281,6 +281,15 @@ export default function LiveScreen() {
 
   const visibleMessages = messages.slice(-60);
 
+  const exitSession = async () => {
+    if (code && opId) {
+      apiFetch(`/events/${code}/operators/${opId}`, { method: "DELETE" }).catch(() => {});
+    }
+    await storage.removeItem("livecast-op-session");
+    broadcasterRef.current?.closeAll();
+    router.replace("/operator/join");
+  };
+
   return (
     <View style={styles.container} testID="operator-live-screen">
       {Platform.OS !== "web" && <KeepAwakeNative />}
@@ -307,6 +316,10 @@ export default function LiveScreen() {
             <Ionicons name="cellular" size={13} color={streaming ? colors.success : colors.onSurfaceSecondary} />
             <Text style={styles.pillText}>{streaming ? `${(bitrate / 1000).toFixed(1)} Mbps` : "0.0"}</Text>
           </View>
+          <Pressable onPress={exitSession} style={[styles.pill, { backgroundColor: "#7f1d1d", marginLeft: "auto" }]}>
+            <Ionicons name="log-out-outline" size={14} color="#fca5a5" />
+            <Text style={[styles.pillText, { color: "#fca5a5", fontWeight: "700" }]}>ESCI</Text>
+          </Pressable>
           {!connected && (
             <View style={[styles.pill, { backgroundColor: colors.brandSecondary }]} testID="status-reconnecting-pill">
               <Text style={styles.pillText}>RICONNESSIONE…</Text>
