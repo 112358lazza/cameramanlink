@@ -14,9 +14,11 @@ export class WebRTCBroadcaster {
   private localStream: MediaStream | null = null;
   private sendWsMessage: (msg: any) => void;
   private myId: string;
+  private camSlot: number;
 
-  constructor(myId: string, sendWsMessage: (msg: any) => void) {
+  constructor(myId: string, camSlot: number, sendWsMessage: (msg: any) => void) {
     this.myId = myId;
+    this.camSlot = camSlot;
     this.sendWsMessage = sendWsMessage;
   }
 
@@ -34,10 +36,14 @@ export class WebRTCBroadcaster {
   }
 
   public async handleMessage(data: any) {
-    const { type, from, target, sdp, candidate } = data;
+    const { type, from, target, sdp, candidate, cam_slot } = data;
     if (target !== this.myId && target !== "all") return;
 
     if (type === "request-stream" && from && from !== this.myId) {
+      // If request specifies a camera slot, only respond if it matches our camera slot!
+      if (cam_slot && parseInt(cam_slot, 10) !== this.camSlot) {
+        return;
+      }
       this.pendingTargets.add(from);
       if (this.localStream) {
         await this.createOfferFor(from);
@@ -76,6 +82,7 @@ export class WebRTCBroadcaster {
         this.sendWsMessage({
           type: "webrtc-candidate",
           from: this.myId,
+          cam_slot: this.camSlot,
           target: targetId,
           candidate: event.candidate,
         });
@@ -92,6 +99,7 @@ export class WebRTCBroadcaster {
       this.sendWsMessage({
         type: "webrtc-offer",
         from: this.myId,
+        cam_slot: this.camSlot,
         target: targetId,
         sdp: offer,
       });

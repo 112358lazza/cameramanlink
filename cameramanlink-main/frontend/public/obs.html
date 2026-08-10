@@ -36,6 +36,7 @@
     const statusEl = document.getElementById('status');
     const overlayEl = document.getElementById('overlay');
     const videoEl = document.getElementById('remoteVideo');
+    videoEl.muted = true;
 
     if (!eventCode) {
       statusEl.textContent = 'Errore: Codice evento mancante nell\'URL (?event=CODICE&cam=1)';
@@ -58,14 +59,21 @@
         ws.onopen = () => {
           statusEl.textContent = `Connesso alla Regia (${eventCode}). In attesa del segnale da CAM ${camSlot}...`;
           
-          // Request stream from cameraman every 2 seconds until stream is established
+          // Request stream specifically for our camera slot
+          const requestPayload = JSON.stringify({ 
+            type: 'request-stream', 
+            target: 'all', 
+            from: obsClientId, 
+            cam_slot: parseInt(camSlot, 10) 
+          });
+
           if (requestInterval) clearInterval(requestInterval);
           requestInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN && (!videoEl.srcObject || videoEl.paused)) {
-              ws.send(JSON.stringify({ type: 'request-stream', target: 'all', from: obsClientId }));
+              ws.send(requestPayload);
             }
           }, 2000);
-          ws.send(JSON.stringify({ type: 'request-stream', target: 'all', from: obsClientId }));
+          ws.send(requestPayload);
         };
 
         ws.onmessage = async (event) => {
@@ -90,7 +98,12 @@
 
       async function handleWSMessage(data) {
         if (data.type === 'webrtc-offer' && data.sdp) {
-          statusEl.textContent = 'Ricevuta offerta video WebRTC. Negotiation in corso...';
+          // Strictly ignore offers from other camera slots!
+          if (data.cam_slot && parseInt(data.cam_slot, 10) !== parseInt(camSlot, 10)) {
+            return;
+          }
+
+          statusEl.textContent = `Ricevuto segnale WebRTC per CAM ${camSlot}. Aggancio flusso...`;
           
           if (peer) {
             peer.close();
@@ -107,6 +120,7 @@
           peer.ontrack = (evt) => {
             if (evt.streams && evt.streams[0]) {
               videoEl.srcObject = evt.streams[0];
+              videoEl.muted = true;
               videoEl.play().then(() => {
                 overlayEl.classList.add('hidden');
               }).catch(e => {
@@ -121,6 +135,7 @@
               ws.send(JSON.stringify({
                 type: 'webrtc-candidate',
                 from: obsClientId,
+                cam_slot: parseInt(camSlot, 10),
                 target: data.from,
                 candidate: evt.candidate
               }));
@@ -136,6 +151,7 @@
               ws.send(JSON.stringify({
                 type: 'webrtc-answer',
                 from: obsClientId,
+                cam_slot: parseInt(camSlot, 10),
                 target: data.from,
                 sdp: answer
               }));
@@ -144,6 +160,9 @@
             console.error('Peer connection setup error:', e);
           }
         } else if (data.type === 'webrtc-candidate' && data.candidate && peer) {
+          if (data.cam_slot && parseInt(data.cam_slot, 10) !== parseInt(camSlot, 10)) {
+            return;
+          }
           await peer.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
         }
       }

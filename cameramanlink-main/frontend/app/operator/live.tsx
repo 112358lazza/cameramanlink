@@ -106,12 +106,12 @@ export default function LiveScreen() {
   const { connected, send } = useEventSocket(code, opId, onWsMessage);
 
   useEffect(() => {
-    if (!opId || !send) return;
-    broadcasterRef.current = new WebRTCBroadcaster(opId, send);
+    if (!opId || !send || !session) return;
+    broadcasterRef.current = new WebRTCBroadcaster(opId, session.cam_slot, send);
     return () => {
       broadcasterRef.current?.closeAll();
     };
-  }, [opId, send]);
+  }, [opId, send, session]);
 
   // Chat history
   useEffect(() => {
