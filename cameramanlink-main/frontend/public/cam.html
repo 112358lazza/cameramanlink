@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>LiveCast — Telecamera Cameraman</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; }
+    body, html { width: 100%; height: 100%; background: #000; color: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+    
+    #videoContainer { position: relative; width: 100vw; height: 100vh; background: #000; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+
+    /* Initial Start Overlay */
+    #startScreen {
+      position: absolute; inset: 0; background: #0a0a0f; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; padding: 24px; text-align: center; z-index: 100;
+    }
+    .cam-badge {
+      background: #1e3a8a; color: #93c5fd; padding: 6px 16px; border-radius: 20px;
+      font-size: 14px; font-weight: 800; letter-spacing: 1px; margin-bottom: 20px; border: 1px solid #3b82f6;
+    }
+    .start-title { font-size: 26px; font-weight: 900; letter-spacing: 0.5px; margin-bottom: 8px; color: #fff; }
+    .start-desc { font-size: 14px; color: #94a3b8; max-width: 320px; margin-bottom: 32px; line-height: 1.5; }
+    .btn-start {
+      background: #ef4444; color: #fff; border: none; padding: 18px 36px; border-radius: 14px;
+      font-size: 18px; font-weight: 900; letter-spacing: 1px; width: 100%; max-width: 320px;
+      cursor: pointer; box-shadow: 0 10px 25px rgba(239, 68, 68, 0.4); transition: transform 0.1s ease, background 0.2s ease;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .btn-start:active { transform: scale(0.97); background: #dc2626; }
+
+    /* Top Overlay Controls */
+    #topOverlay {
+      position: absolute; top: 0; left: 0; right: 0; padding: 16px; display: flex;
+      justify-content: space-between; align-items: center; z-index: 20; background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+    }
+    .pill-row { display: flex; gap: 8px; align-items: center; }
+    .pill {
+      background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(8px); padding: 6px 12px;
+      border-radius: 20px; border: 1px solid rgba(255,255,255,0.1); font-size: 12px; font-weight: 700; color: #f8fafc;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .pill-onair { background: #ef4444; border-color: #f87171; color: #fff; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+    .btn-exit {
+      background: #7f1d1d; color: #fca5a5; border: 1px solid #ef4444; padding: 6px 14px;
+      border-radius: 20px; font-size: 12px; font-weight: 800; cursor: pointer;
+    }
+
+    /* Bottom Control Bar */
+    #bottomControls {
+      position: absolute; bottom: 0; left: 0; right: 0; padding: 24px 20px 36px;
+      display: flex; justify-content: center; align-items: center; gap: 20px; z-index: 20;
+      background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+    }
+    .ctrl-btn {
+      width: 56px; height: 56px; border-radius: 50%; background: rgba(30, 41, 59, 0.9);
+      border: 1px solid rgba(255,255,255,0.2); color: #fff; display: flex; align-items: center;
+      justify-content: center; font-size: 22px; cursor: pointer; backdrop-filter: blur(8px);
+    }
+    .ctrl-btn:active { transform: scale(0.92); background: rgba(51, 65, 85, 0.9); }
+    .ctrl-btn.active { background: #3b82f6; border-color: #60a5fa; }
+
+    #toast {
+      position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.95); color: #38bdf8; padding: 10px 20px; border-radius: 20px;
+      border: 1px solid #0284c7; font-size: 13px; font-weight: 700; z-index: 50; opacity: 0;
+      transition: opacity 0.3s ease; pointer-events: none; text-align: center; max-width: 90%;
+    }
+    #toast.show { opacity: 1; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="videoContainer">
+    <video id="localVideo" autoplay playsinline muted></video>
+
+    <!-- Start Screen -->
+    <div id="startScreen">
+      <div class="cam-badge" id="camBadge">TELECAMERA 1</div>
+      <div class="start-title">PRONTO A TRASMETTERE</div>
+      <div class="start-desc">Tocca il pulsante per attivare fotocamera e microfono ed iniziare la diretta WebRTC verso OBS.</div>
+      <button class="btn-start" id="btnStart">
+        <span>🔴</span> AVVIA DIRETTA
+      </button>
+    </div>
+
+    <!-- Top Overlay -->
+    <div id="topOverlay" class="hidden">
+      <div class="pill-row">
+        <div class="pill pill-onair" id="onAirPill">🔴 ON AIR</div>
+        <div class="pill" id="camPill">CAM 1</div>
+        <div class="pill" id="statusPill">CONNESSO</div>
+      </div>
+      <button class="btn-exit" id="btnExit">ESCI</button>
+    </div>
+
+    <!-- Bottom Control Bar -->
+    <div id="bottomControls" class="hidden">
+      <button class="ctrl-btn" id="btnFlip" title="Inverti Fotocamera">🔄</button>
+      <button class="ctrl-btn active" id="btnMute" title="Microfono">🎙️</button>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+
+  <script>
+    // Extract slot parameter from URL (?slot=1 or URL path /cam1)
+    const params = new URLSearchParams(window.location.search);
+    let slotStr = params.get('slot');
+    if (!slotStr) {
+      const match = window.location.pathname.match(/\/cam([1-4])/i);
+      slotStr = match ? match[1] : '1';
+    }
+    const camSlot = parseInt(slotStr, 10) || 1;
+    const eventCode = 'PERMANENT';
+    const myId = 'cam_' + camSlot;
+
+    document.getElementById('camBadge').textContent = 'TELECAMERA ' + camSlot;
+    document.getElementById('camPill').textContent = 'CAM ' + camSlot;
+
+    const startScreen = document.getElementById('startScreen');
+    const topOverlay = document.getElementById('topOverlay');
+    const bottomControls = document.getElementById('bottomControls');
+    const localVideo = document.getElementById('localVideo');
+    const toastEl = document.getElementById('toast');
+    const statusPill = document.getElementById('statusPill');
+    const btnMute = document.getElementById('btnMute');
+
+    let localStream = null;
+    let ws = null;
+    let currentFacing = 'environment';
+    let isAudioMuted = false;
+    let peers = new Map(); // targetId -> RTCPeerConnection
+
+    function showToast(msg) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('show');
+      setTimeout(() => toastEl.classList.remove('show'), 3000);
+    }
+
+    async function initCamera() {
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+      }
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: currentFacing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: { echoCancellation: true, noiseSuppression: true }
+        });
+      } catch (e) {
+        console.warn('Audio fallback triggered:', e);
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: currentFacing },
+            audio: false
+          });
+          showToast('Microfono non disponibile, avviato solo video');
+        } catch (err) {
+          alert('Impossibile accedere alla fotocamera. Verifica i permessi nel browser.');
+          return false;
+        }
+      }
+      localVideo.srcObject = localStream;
+      localVideo.play().catch(() => {});
+      return true;
+    }
+
+    function connectWS() {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${window.location.host}/api/ws/${eventCode}/${myId}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        statusPill.textContent = 'CONNESSO';
+        statusPill.style.color = '#4ade80';
+        sendWsStatus();
+      };
+
+      ws.onmessage = async (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          handleWSMessage(data);
+        } catch (e) {}
+      };
+
+      ws.onclose = () => {
+        statusPill.textContent = 'RICONNESSIONE...';
+        statusPill.style.color = '#f87171';
+        setTimeout(connectWS, 2000);
+      };
+    }
+
+    function sendWsStatus() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+          type: 'status',
+          streaming: true,
+          cam_slot: camSlot
+        }));
+      }
+    }
+
+    async function handleWSMessage(data) {
+      const { type, from, target, sdp, candidate, cam_slot } = data;
+      if (target !== myId && target !== 'all') return;
+
+      if (type === 'request-stream' && from && from !== myId) {
+        if (cam_slot && parseInt(cam_slot, 10) !== camSlot) return;
+
+        const existing = peers.get(from);
+        if (existing && (existing.connectionState === 'connected' || existing.iceConnectionState === 'connected')) {
+          return;
+        }
+        await createOfferFor(from);
+      } else if (type === 'webrtc-answer' && from && sdp) {
+        const peer = peers.get(from);
+        if (peer && peer.signalingState !== 'stable') {
+          await peer.setRemoteDescription(new RTCSessionDescription(sdp)).catch(() => {});
+        }
+      } else if (type === 'webrtc-candidate' && from && candidate) {
+        const peer = peers.get(from);
+        if (peer) {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => {});
+        }
+      }
+    }
+
+    async function createOfferFor(targetId) {
+      if (!localStream) return;
+
+      const existing = peers.get(targetId);
+      if (existing) existing.close();
+
+      const peer = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' }
+        ]
+      });
+      peers.set(targetId, peer);
+
+      localStream.getTracks().forEach(track => {
+        peer.addTrack(track, localStream);
+      });
+
+      peer.onicecandidate = (evt) => {
+        if (evt.candidate && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'webrtc-candidate',
+            from: myId,
+            cam_slot: camSlot,
+            target: targetId,
+            candidate: evt.candidate
+          }));
+        }
+      };
+
+      try {
+        const offer = await peer.createOffer({ offerToReceiveAudio: false, offerToReceiveVideo: false });
+        await peer.setLocalDescription(offer);
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'webrtc-offer',
+            from: myId,
+            cam_slot: camSlot,
+            target: targetId,
+            sdp: offer
+          }));
+        }
+      } catch (e) {
+        console.error('createOffer error:', e);
+      }
+    }
+
+    // Start Button
+    document.getElementById('btnStart').addEventListener('click', async () => {
+      const ok = await initCamera();
+      if (!ok) return;
+
+      startScreen.classList.add('hidden');
+      topOverlay.classList.remove('hidden');
+      bottomControls.classList.remove('hidden');
+
+      connectWS();
+      showToast('TRASMISSIONE AVVIATA — CAM ' + camSlot + ' IN ONDA');
+    });
+
+    // Flip Camera Button
+    document.getElementById('btnFlip').addEventListener('click', async () => {
+      currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+      await initCamera();
+      // Re-send stream tracks to all active peers
+      for (const [targetId, peer] of peers.entries()) {
+        await createOfferFor(targetId);
+      }
+      showToast('Fotocamera invertita');
+    });
+
+    // Mute Microphone Button
+    document.getElementById('btnMute').addEventListener('click', () => {
+      if (!localStream) return;
+      isAudioMuted = !isAudioMuted;
+      localStream.getAudioTracks().forEach(t => t.enabled = !isAudioMuted);
+      btnMute.classList.toggle('active', !isAudioMuted);
+      btnMute.textContent = isAudioMuted ? '🔇' : '🎙️';
+      showToast(isAudioMuted ? 'Microfono disattivato' : 'Microfono attivo');
+    });
+
+    // Exit Button
+    document.getElementById('btnExit').addEventListener('click', () => {
+      if (confirm('Vuoi interrompere la trasmissione e liberare la telecamera?')) {
+        location.reload();
+      }
+    });
+  </script>
+</body>
+</html>

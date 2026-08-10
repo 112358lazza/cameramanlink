@@ -29,19 +29,19 @@
 
   <script>
     const params = new URLSearchParams(window.location.search);
-    const eventCode = (params.get('event') || '').toUpperCase();
-    const camSlot = params.get('cam') || '1';
+    let eventCode = (params.get('event') || 'PERMANENT').toUpperCase();
+    let camSlot = params.get('cam');
+    if (!camSlot) {
+      const match = window.location.pathname.match(/\/obs([1-4])/i);
+      camSlot = match ? match[1] : '1';
+    }
     const obsClientId = 'obs_' + camSlot;
 
     const statusEl = document.getElementById('status');
     const overlayEl = document.getElementById('overlay');
     const videoEl = document.getElementById('remoteVideo');
 
-    if (!eventCode) {
-      statusEl.textContent = 'Errore: Codice evento mancante nell\'URL (?event=CODICE&cam=1)';
-    } else {
-      initOBSReceiver();
-    }
+    initOBSReceiver();
 
     function initOBSReceiver() {
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

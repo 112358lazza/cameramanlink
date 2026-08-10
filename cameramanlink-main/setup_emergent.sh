@@ -161,6 +161,17 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
+    # Permanent Camera Links for Cameramen & OBS
+    location = /cam1 { rewrite ^ /cam.html?slot=1 last; }
+    location = /cam2 { rewrite ^ /cam.html?slot=2 last; }
+    location = /cam3 { rewrite ^ /cam.html?slot=3 last; }
+    location = /cam4 { rewrite ^ /cam.html?slot=4 last; }
+
+    location = /obs1 { rewrite ^ /obs.html?cam=1 last; }
+    location = /obs2 { rewrite ^ /obs.html?cam=2 last; }
+    location = /obs3 { rewrite ^ /obs.html?cam=3 last; }
+    location = /obs4 { rewrite ^ /obs.html?cam=4 last; }
+
     location / {
         try_files \$uri \$uri/ /index.html;
     }
