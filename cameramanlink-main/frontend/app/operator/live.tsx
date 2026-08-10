@@ -58,7 +58,7 @@ export default function LiveScreen() {
   const cameraRef = useRef<CameraView>(null);
   const streamingRef = useRef(false);
   const batteryRef = useRef<number | null>(null);
-  const pingRef.current = ping;
+  const pingRef = useRef<number | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listRef = useRef<FlatList>(null);
   const broadcasterRef = useRef<WebRTCBroadcaster | null>(null);
@@ -91,6 +91,7 @@ export default function LiveScreen() {
       } else if (data.type === "pong") {
         const rtt = Date.now() - Number(data.ts);
         setPing(rtt);
+        pingRef.current = rtt;
       } else if (data.type === "chat") {
         const msg: ChatMessage = data.message;
         setMessages((prev) => [...prev, msg]);
