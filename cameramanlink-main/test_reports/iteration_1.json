@@ -1,0 +1,45 @@
+{
+  "summary": "Backend: 14/14 pytest passing (events CRUD, join/rejoin/full, messages, logs, download, WS presence/chat/tally/status/ping-pong, WS unknown event close). Frontend: role selection, director create-event, dashboard (3 tiles, media host edit+save, tabs, broadcast chat, copy toast) all working. E2E across 2 pages verified: operator appears in dashboard, tally-button-1 sets ON AIR + tile-onair-badge-1 shown + on-air-badge shown on operator page, director broadcast chat 'REGIA_HELLO_E2E' received by operator over WS. Operator on /operator/live shows camera-permission-screen on web (expected, native-only camera). One JS runtime issue: `useKeepAwake` throws uncaught 'Wake Lock permission request denied' on web when browser denies permission — visible as Expo dev red overlay. Also a minor deprecation warning: `props.pointerEvents is deprecated` on dashboard toast View.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "operator/live.tsx useKeepAwake", "issue": "Uncaught error 'Wake Lock permission request denied' fires on web when permission is denied (headless, non-secure, or user denial). Shows Expo LogBox red overlay. Should wrap in try/catch or platform-gate. Reference: /app/frontend/app/operator/live.tsx:57", "testID": "operator-live-screen", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "director/dashboard.tsx toast View", "issues": ["Uses deprecated prop `pointerEvents=\"none\"`. Move to `style={{ pointerEvents: 'none' }}` to remove console warning. Reference: /app/frontend/app/director/dashboard.tsx:432"]}
+    ],
+    "react_native_issues": [
+      {"component": "expo-keep-awake (useKeepAwake)", "issue": "Not gracefully handled on web when Wake Lock permission denied — becomes an uncaught Error/red screen in dev. Recommend Platform.OS !== 'web' guard or try/catch inside a wrapper hook. Reference: /app/frontend/app/operator/live.tsx:4,57"},
+      {"component": "pointerEvents prop (RN Web deprecation)", "issue": "`pointerEvents` as a prop is deprecated in favor of style.pointerEvents. Reference: /app/frontend/app/director/dashboard.tsx:432"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_backend.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Wrap or platform-gate useKeepAwake in /app/frontend/app/operator/live.tsx (e.g., `if (Platform.OS !== 'web') useKeepAwake();` or a custom safe wrapper) so browsers denying Wake Lock don't surface an uncaught error.",
+    "Migrate deprecated `pointerEvents=\"none\"` prop on toast View in /app/frontend/app/director/dashboard.tsx:432 to `style={{ pointerEvents: 'none' }}`.",
+    "(Optional) Consider suppressing/handling the LogBox in production/preview so dev overlays don't obscure the UI when non-critical warnings appear."
+  ],
+  "critical_code_review_comments": [
+    "server.py stays under 400 lines, uses async/await consistently, excludes MongoDB _id via projection {\"_id\": 0}, and reads all config from env vars — good.",
+    "WS routes are registered on api_router with prefix /api so they are correctly ingress-routed as wss://.../api/ws/{code}/{client_id} — verified working.",
+    "Single-camera-on-air invariant enforced server-side (update_many on_air=False before setting target true) — validated by test.",
+    "Rejoin idempotency preserved via (event_code, name) lookup — validated.",
+    "Front-end apiFetch and useEventSocket use process.env.EXPO_PUBLIC_BACKEND_URL — compliant with env var rules.",
+    "All interactive elements observed have testID props (join-*, event-name-input, num-cameras-N-option, create-event-button, tally-button-N, tile-onair-badge-N, media-host-*, tab-*-button, director-chat-*, copy-*-N)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_backend.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "95%"},
+  "seed_data_creation": "Multiple TEST_-prefixed events + operators created via API during pytest run (auto-generated codes). No manual seed required for future runs — tests are self-contained and prefix all data with TEST_.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend at https://multi-cam-director-1.preview.emergentagent.com. Run `pytest /app/backend/tests/test_backend.py -o asyncio_mode=auto -n auto --junitxml=/app/test_reports/pytest/pytest_results.xml`. For frontend E2E, use browser context.grant_permissions(['camera','microphone']) and create event via POST /api/events, then open two pages (director dashboard ?code=CODE and operator/join). Real camera preview & SRT streaming require a native build; web only exposes camera-permission-screen — this is intentional per product spec.",
+  "rca_of_issue": "Wake Lock error RCA: expo-keep-awake's useKeepAwake calls navigator.wakeLock.request('screen') on web. When the browser (headless/preview/insecure/user-denied) rejects the promise, the rejection is not caught by the hook and bubbles to LogBox as an Uncaught Error. Mitigation: Platform-gate on web, or wrap in try/catch inside a custom hook, or catch the promise rejection. Not a backend/data bug — purely a UX/dev-experience issue on web preview."
+}
