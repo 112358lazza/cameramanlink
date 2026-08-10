@@ -201,7 +201,7 @@ export default function Dashboard() {
                 <Pressable
                   testID={`copy-obs-direct-${cam.slot}`}
                   style={[styles.smallBtn, { backgroundColor: "#1e3a8a", borderColor: "#3b82f6" }]}
-                  onPress={() => copy(`https://cameraman.gerikult.it/studio/obs.html?cam=${cam.slot}`, "Link OBS Browser Direct (WebRTC)")}
+                  onPress={() => copy(`https://cameraman.gerikult.it/obs.html?cam=${cam.slot}`, "Link OBS Browser Direct (WebRTC)")}
                 >
                   <Ionicons name="desktop-outline" size={14} color="#60a5fa" />
                   <Text style={[styles.smallBtnText, { color: "#93c5fd", fontWeight: "700" }]}>OBS Browser</Text>

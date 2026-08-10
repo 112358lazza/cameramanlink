@@ -36,7 +36,7 @@ export default function RoleSelection() {
             style={({ pressed }) => [styles.card, pressed && styles.cardPressed, { borderColor: "#3b82f6" }]}
             onPress={() => {
               if (Platform.OS === "web") {
-                window.location.href = "https://cameraman.gerikult.it/studio/director";
+                window.location.href = "https://cameraman.gerikult.it/director.html";
               }
             }}
           >
