@@ -100,7 +100,7 @@ EOF
 
 python3 -m venv venv
 ./venv/bin/pip install --upgrade pip
-./venv/bin/pip install fastapi uvicorn motor pymongo python-dotenv pydantic starlette requests httpx
+./venv/bin/pip install websockets wsproto httptools fastapi uvicorn motor pymongo python-dotenv pydantic starlette requests httpx
 
 # Servizio Systemd per Backend
 cat > /etc/systemd/system/livecast-backend.service <<EOF
