@@ -1,0 +1,146 @@
+{
+  "app_name": "LiveCast Regia",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "A high-contrast, tactical command center designed for instant live broadcast control and zero-friction camera operation.",
+  "color": {
+    "surface": "#121214",
+    "onSurface": "#F3F3F4",
+    "surfaceSecondary": "#1C1C1F",
+    "onSurfaceSecondary": "#A1A1A5",
+    "surfaceTertiary": "#27272A",
+    "onSurfaceTertiary": "#E4E4E7",
+    "surfaceInverse": "#E4E4E7",
+    "onSurfaceInverse": "#121214",
+    "brand": "#E52E2D",
+    "brandPrimary": "#E52E2D",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#B82424",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#3F1818",
+    "onBrandTertiary": "#FFB8B8",
+    "success": "#34C759",
+    "onSuccess": "#000000",
+    "warning": "#FF9500",
+    "onWarning": "#000000",
+    "error": "#FF3B30",
+    "onError": "#FFFFFF",
+    "info": "#0A84FF",
+    "onInfo": "#FFFFFF",
+    "border": "#27272A",
+    "borderStrong": "#3F3F46",
+    "divider": "#27272A"
+  },
+  "typography": {
+    "displayFontFamily": "Barlow Condensed",
+    "textFontFamily": "IBM Plex Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Dense and tactical. Use tight spacing for metrics and robust padding for touch targets. Avoid accidental empty space.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "stack_only",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Avoid glassmorphism to prioritize maximum legibility and operational clarity."
+    ],
+    "dont's": [
+      "Never use blur on dense data screens, live metrics, or over the camera viewfinder."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Role Selection Landing",
+      "purpose": "Entry point to choose between Cameraman and Director roles.",
+      "states": {
+        "loading": "Central high-contrast spinner.",
+        "empty": "N/A",
+        "error": "Standard alert toast."
+      },
+      "layout": "A split-screen or large stacked card layout. Use a cinematic background image with a heavy dark gradient scrim. Two massive cards for 'Join as Cameraman' and 'Access Director Dashboard', clearly separated by visual hierarchy."
+    },
+    {
+      "name": "Event Join Screen (Cameraman)",
+      "purpose": "Form to enter the event code and operator name.",
+      "states": {
+        "loading": "Submit button shows spinner, inputs disabled.",
+        "empty": "N/A",
+        "error": "Inline red validation text beneath inputs."
+      },
+      "layout": "Simple column layout centered on screen. Inputs have strong `borderStrong` outlines when focused. The 'Join Event' button is pinned to the bottom of the screen (sticky CTA) using KeyboardAvoidingView."
+    },
+    {
+      "name": "Camera Live Screen",
+      "purpose": "Full-screen camera viewfinder with vital broadcast overlays.",
+      "states": {
+        "loading": "Connecting to MediaMTX spinner over black screen.",
+        "empty": "N/A",
+        "error": "Massive 'Connection Lost' overlay with 'Retry' button."
+      },
+      "layout": "Camera preview fills the entire screen absolutely. Top safe area: A horizontal row of compact pill-shaped indicators (battery, ping, bitrate). Bottom safe area: A massive, thumb-friendly 'GO LIVE' button. When ON AIR is triggered by the director, a full-screen red border appears with a large 'ON AIR' badge. Side area: A floating transparent panel for quick-reply chat presets and screen lock toggle."
+    },
+    {
+      "name": "Director Dashboard (Web/Tablet)",
+      "purpose": "Multi-camera broadcast control room to monitor feeds, trigger tally, and chat.",
+      "states": {
+        "loading": "Skeleton grid for camera feeds.",
+        "empty": "Central illustration of a camera lens with 'No operators connected'.",
+        "error": "Red banner at top of dashboard indicating server disconnect."
+      },
+      "layout": "Dense, modular web layout. Left/Center: A CSS Grid of active camera feeds. Each feed is a distinct block with a 2pt border. When a camera is 'Program/ON AIR', its border turns `brandPrimary` (Red). When 'Preview', it turns `success` (Green). Below each video feed, display metrics (bitrate, ping) and an action row (Copy SRT, Put ON AIR). Right panel: Fixed sidebar for the event log and director-to-cameraman broadcast chat."
+    }
+  ],
+  "images": {
+    "role_selection_bg": {
+      "url": "https://images.unsplash.com/photo-1636226570637-3fbda7ca09dc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwyfHxkYXJrJTIwYnJvYWRjYXN0JTIwc3R1ZGlvJTIwY29udHJvbCUyMHJvb218ZW58MHx8fHwxNzg2MzQ5NTYxfDA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1621976975813-10e88ae6e450?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwxfHxkYXJrJTIwYnJvYWRjYXN0JTIwc3R1ZGlvJTIwY29udHJvbCUyMHJvb218ZW58MHx8fHwxNzg2MzQ5NTYxfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Dark broadcast studio control room"
+    },
+    "dashboard_empty_state": {
+      "url": "https://images.unsplash.com/photo-1512790182412-b19e6d62bc39?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHxsaXZlJTIwc3RyZWFtaW5nJTIwY2FtZXJhJTIwbGVuc3xlbnwwfHx8fDE3ODYzNDk1NjF8MA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1580707221190-bd94d9087b7f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwyfHxsaXZlJTIwc3RyZWFtaW5nJTIwY2FtZXJhJTIwbGVuc3xlbnwwfHx8fDE3ODYzNDk1NjF8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Camera lens in the dark"
+    }
+  },
+  "instructions_to_main_agent": [
+    "PREMIUM REQUIREMENT: App must use the Dark-First Utility UI with zero pure-black backgrounds to prevent eye strain during long events. Use #121214 as the base.",
+    "CAMERA UI: The camera preview must sit perfectly full screen behind all controls (absolute positioning). Ensure there is no safe-area clipping on the camera component itself, but buttons must respect the safe area.",
+    "TALLY LOGIC: Tally lights are non-negotiable for broadcast. Use the `brandPrimary` (Signal Red) for the active Program/On-Air state, and a robust border outline on the dashboard grids to mirror standard hardware switchers.",
+    "DASHBOARD WEB LAYOUT: Ensure the director dashboard is highly responsive. Use CSS Grid for the camera previews. Include buttons to directly copy the MediaMTX SRT/RTMP stream URLs to the clipboard for easy OBS integration.",
+    "CHAT OVERLAY: On mobile, chat messages from the director should appear as floating snackbars or a semi-transparent localized view to not block the camera feed. Preset replies (OK, Wait, Zoom) should be large, thumb-friendly pills.",
+    "LEARNING FROM RESEARCH: Professional broadcast switchers separate 'Preview' and 'Program'. Ensure the director can easily identify which operator is live (red) and which is queued (green). Keep status indicators (bitrate, ping) condensed but highly visible."
+  ]
+}
