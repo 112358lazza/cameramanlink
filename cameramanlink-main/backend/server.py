@@ -257,20 +257,20 @@ async def presence_snapshot(event_code: str):
 @api_router.websocket("/ws/{event_code}/{client_id}")
 async def ws_endpoint(websocket: WebSocket, event_code: str, client_id: str):
     event_code = event_code.upper()
+    await websocket.accept()
+
     ev = await db.events.find_one({"code": event_code}, {"_id": 0})
     if not ev:
         await websocket.close(code=4404)
         return
+
     is_director = client_id == "director"
     is_obs = client_id.startswith("obs_") or client_id.startswith("director_cam_")
     op = None
     if not is_director and not is_obs:
         op = await db.operators.find_one({"id": client_id}, {"_id": 0})
-        if not op:
-            await websocket.close(code=4404)
-            return
 
-    await manager.connect(event_code, client_id, websocket)
+    manager.rooms.setdefault(event_code, {})[client_id] = websocket
 
     if op:
         await db.operators.update_one({"id": client_id}, {"$set": {"online": True}})
@@ -357,7 +357,7 @@ async def ws_endpoint(websocket: WebSocket, event_code: str, client_id: str):
 
             elif mtype in ("webrtc-offer", "webrtc-answer", "webrtc-candidate", "request-stream"):
                 target_id = data.get("target")
-                if target_id:
+                if target_id and target_id != "all":
                     await manager.send_to(event_code, target_id, data)
                 else:
                     await manager.broadcast(event_code, data)
