@@ -261,14 +261,35 @@ async def ws_endpoint(websocket: WebSocket, event_code: str, client_id: str):
 
     ev = await db.events.find_one({"code": event_code}, {"_id": 0})
     if not ev:
-        await websocket.close(code=4404)
-        return
+        ev = {
+            "id": str(uuid.uuid4()),
+            "code": event_code,
+            "name": f"Evento {event_code}",
+            "created_at": now_iso(),
+            "active": True
+        }
+        await db.events.insert_one({**ev})
 
     is_director = client_id == "director"
     is_obs = client_id.startswith("obs_") or client_id.startswith("director_cam_")
     op = None
     if not is_director and not is_obs:
         op = await db.operators.find_one({"id": client_id}, {"_id": 0})
+        if not op:
+            op = {
+                "id": client_id,
+                "event_code": event_code,
+                "name": f"CAM_{client_id[:4]}",
+                "cam_slot": 1,
+                "online": True,
+                "streaming": False,
+                "battery": 100,
+                "bitrate": 0,
+                "ping": 0,
+                "on_air": False,
+                "joined_at": now_iso(),
+            }
+            await db.operators.insert_one({**op})
 
     manager.rooms.setdefault(event_code, {})[client_id] = websocket
 
