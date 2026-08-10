@@ -164,6 +164,55 @@ export default function LiveScreen() {
     };
   }, [connected, send]);
 
+  const webVideoRef = useRef<any>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  const startWebCamera = async (facingMode: string) => {
+    if (Platform.OS !== "web" || typeof navigator === "undefined" || !navigator.mediaDevices) return;
+    try {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: facingMode === "back" ? "environment" : "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: { echoCancellation: true, noiseSuppression: true },
+        });
+      } catch {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: facingMode === "back" ? "environment" : "user" },
+            audio: false,
+          });
+        } catch (e) {
+          console.error("getUserMedia failed:", e);
+        }
+      }
+      mediaStreamRef.current = stream;
+      if (webVideoRef.current && stream) {
+        webVideoRef.current.srcObject = stream;
+        webVideoRef.current.play().catch(() => {});
+      }
+      if (broadcasterRef.current && stream) {
+        await broadcasterRef.current.setStream(stream);
+      }
+    } catch (e) {
+      console.error("startWebCamera error:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      startWebCamera(facing);
+    }
+    return () => {
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, [facing]);
+
   const toggleLive = async () => {
     const next = !streaming;
     setStreaming(next);
@@ -172,32 +221,15 @@ export default function LiveScreen() {
     
     if (next) {
       showToast("STREAMING IN ONDA — Segnale WebRTC Attivo!");
-      if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.mediaDevices) {
-        let stream: MediaStream | null = null;
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: facing === "back" ? "environment" : "user" },
-            audio: true,
-          });
-        } catch {
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({
-              video: { facingMode: facing === "back" ? "environment" : "user" },
-              audio: false,
-            });
-          } catch (e) {
-            console.error("getUserMedia failed:", e);
-          }
-        }
-        if (stream && broadcasterRef.current) {
-          await broadcasterRef.current.setStream(stream);
+      if (Platform.OS === "web") {
+        if (!mediaStreamRef.current) {
+          await startWebCamera(facing);
+        } else if (broadcasterRef.current) {
+          await broadcasterRef.current.setStream(mediaStreamRef.current);
         }
       }
     } else {
-      if (Platform.OS === "web" && broadcasterRef.current) {
-        broadcasterRef.current.setStream(null);
-      }
-      showToast("Stream fermato");
+      showToast("Stream in pausa");
     }
   };
 
@@ -292,8 +324,25 @@ export default function LiveScreen() {
 
   return (
     <View style={styles.container} testID="operator-live-screen">
-      {Platform.OS !== "web" && <KeepAwakeNative />}
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} mode="video" />
+      {Platform.OS === "web" ? (
+        <video
+          ref={webVideoRef}
+          autoPlay
+          playsInline
+          muted
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: facing === "user" ? "scaleX(-1)" : "none",
+          }}
+        />
+      ) : (
+        <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing={facing} mode="video" />
+      )}
 
       {/* ON AIR frame */}
       {onAir && <View style={[styles.onAirFrame, { pointerEvents: "none" }]} testID="on-air-frame" />}

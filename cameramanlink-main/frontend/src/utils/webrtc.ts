@@ -45,6 +45,13 @@ export class WebRTCBroadcaster {
         return;
       }
       this.pendingTargets.add(from);
+
+      // Prevent tearing down an already active peer connection!
+      const existingPeer = this.peers.get(from);
+      if (existingPeer && (existingPeer.connectionState === "connected" || existingPeer.iceConnectionState === "connected")) {
+        return;
+      }
+
       if (this.localStream) {
         await this.createOfferFor(from);
       }

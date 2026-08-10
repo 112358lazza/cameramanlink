@@ -19,7 +19,7 @@
 </head>
 <body>
   <div id="videoContainer">
-    <video id="remoteVideo" autoplay playsinline muted></video>
+    <video id="remoteVideo" autoplay playsinline></video>
     <div id="overlay">
       <div class="spinner" id="spinner"></div>
       <div class="title">LIVECAST STUDIO — OBS SOURCE</div>
@@ -36,7 +36,6 @@
     const statusEl = document.getElementById('status');
     const overlayEl = document.getElementById('overlay');
     const videoEl = document.getElementById('remoteVideo');
-    videoEl.muted = true;
 
     if (!eventCode) {
       statusEl.textContent = 'Errore: Codice evento mancante nell\'URL (?event=CODICE&cam=1)';
@@ -59,7 +58,6 @@
         ws.onopen = () => {
           statusEl.textContent = `Connesso alla Regia (${eventCode}). In attesa del segnale da CAM ${camSlot}...`;
           
-          // Request stream specifically for our camera slot
           const requestPayload = JSON.stringify({ 
             type: 'request-stream', 
             target: 'all', 
@@ -69,10 +67,13 @@
 
           if (requestInterval) clearInterval(requestInterval);
           requestInterval = setInterval(() => {
-            if (ws && ws.readyState === WebSocket.OPEN && (!videoEl.srcObject || videoEl.paused)) {
-              ws.send(requestPayload);
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              const isConnected = peer && (peer.connectionState === 'connected' || peer.iceConnectionState === 'connected');
+              if (!isConnected) {
+                ws.send(requestPayload);
+              }
             }
-          }, 2000);
+          }, 3000);
           ws.send(requestPayload);
         };
 
@@ -98,8 +99,12 @@
 
       async function handleWSMessage(data) {
         if (data.type === 'webrtc-offer' && data.sdp) {
-          // Strictly ignore offers from other camera slots!
           if (data.cam_slot && parseInt(data.cam_slot, 10) !== parseInt(camSlot, 10)) {
+            return;
+          }
+
+          // If peer is already active and streaming, do not tear down!
+          if (peer && (peer.connectionState === 'connected' || peer.iceConnectionState === 'connected')) {
             return;
           }
 
@@ -120,13 +125,19 @@
           peer.ontrack = (evt) => {
             if (evt.streams && evt.streams[0]) {
               videoEl.srcObject = evt.streams[0];
-              videoEl.muted = true;
               videoEl.play().then(() => {
                 overlayEl.classList.add('hidden');
               }).catch(e => {
                 console.warn('Auto-play play() catch:', e);
                 overlayEl.classList.add('hidden');
               });
+            }
+          };
+
+          peer.onconnectionstatechange = () => {
+            if (peer.connectionState === 'disconnected' || peer.connectionState === 'failed') {
+              overlayEl.classList.remove('hidden');
+              statusEl.textContent = `Segnale interrotto su CAM ${camSlot}. Riconnessione...`;
             }
           };
 
